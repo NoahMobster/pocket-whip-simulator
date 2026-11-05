@@ -1,2 +1,723 @@
-<!doctype html>
-<html><body>Hello</body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pocket Whip Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Custom range slider styling */
+        input[type=range] {
+            accent-color: #f59e0b;
+        }
+        .whip-glow {
+            filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.5));
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-amber-500 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-50 glass-panel border-b border-slate-800 px-4 py-3">
+        <div class="max-w-md mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-2 bg-gradient-to-tr from-amber-600 to-yellow-500 rounded-xl text-white shadow-lg shadow-amber-950/50">
+                    <i data-lucide="zap" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-base leading-tight text-white flex items-center gap-1.5">
+                        POCKET WHIP
+                        <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">PRO</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-400">Android & iOS Motion Whip</p>
+                </div>
+            </div>
+
+            <!-- Stats Counter Badge -->
+            <div class="flex items-center space-x-2">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-center">
+                    <div class="text-[8px] uppercase tracking-wider text-slate-400 font-bold">Streak</div>
+                    <div id="streakCount" class="text-xs font-mono font-bold text-amber-400">0</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1 flex items-center space-x-2">
+                    <i data-lucide="award" class="w-4 h-4 text-amber-400"></i>
+                    <div class="text-right">
+                        <div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Cracks</div>
+                        <div id="crackCount" class="text-xs font-mono font-bold text-amber-400">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Whip Canvas & Interaction Zone -->
+    <main class="flex-1 max-w-md w-full mx-auto px-4 py-3 flex flex-col justify-between space-y-3">
+
+        <!-- Status Banner -->
+        <div class="glass-panel rounded-2xl p-3 flex items-center justify-between border border-slate-800">
+            <div class="flex items-center space-x-3">
+                <div id="sensorDot" class="w-3 h-3 rounded-full bg-rose-500 shadow-md animate-pulse"></div>
+                <div>
+                    <div id="statusTitle" class="text-xs font-bold text-slate-200">Motion Sensor Inactive</div>
+                    <div id="statusDesc" class="text-[11px] text-slate-400">Tap "Enable Motion" to swing your phone</div>
+                </div>
+            </div>
+            <button id="sensorToggleBtn" onclick="toggleMotionSensors()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5">
+                <i id="sensorIcon" data-lucide="power" class="w-3.5 h-3.5"></i>
+                <span id="sensorBtnText">Enable Motion</span>
+            </button>
+        </div>
+
+        <!-- Animated Whip Canvas Container -->
+        <div class="relative w-full h-72 bg-slate-900/90 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col items-center justify-between p-4 cursor-pointer" onclick="triggerWhipCrack('Tap')">
+            <!-- Canvas Overlay for Whip Lash, Handle & Particle Physics -->
+            <canvas id="whipCanvas" class="absolute inset-0 w-full h-full z-10 pointer-events-none"></canvas>
+
+            <!-- Screen Flash Overlay on Crack -->
+            <div id="flashOverlay" class="absolute inset-0 bg-amber-300/30 opacity-0 transition-opacity duration-75 pointer-events-none z-20"></div>
+
+            <!-- Visual Hint Inside Canvas -->
+            <div class="z-0 text-center my-auto space-y-1">
+                <div class="w-16 h-16 mx-auto rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-2">
+                    <i data-lucide="hand" class="w-8 h-8 animate-bounce"></i>
+                </div>
+                <div class="text-sm font-bold text-slate-200">SNAP YOUR PHONE!</div>
+                <div class="text-xs text-slate-400">Flick forward & pull back quickly, or tap here</div>
+            </div>
+
+            <!-- Peak Speed & Force Telemetry -->
+            <div class="z-0 w-full flex items-center justify-between px-3 py-1.5 bg-slate-950/70 rounded-xl border border-slate-800/80 backdrop-blur-sm text-[11px] font-mono">
+                <div class="flex items-center space-x-1 text-slate-400">
+                    <i data-lucide="gauge" class="w-3.5 h-3.5 text-amber-400"></i>
+                    <span>Force: <strong id="currentForce" class="text-slate-200">0.0</strong> m/s²</span>
+                </div>
+                <div class="flex items-center space-x-1 text-slate-400">
+                    <span>Peak: <strong id="maxForce" class="text-amber-400">0.0</strong> m/s²</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Skins & Audio Selector Tabs -->
+        <div class="grid grid-cols-2 gap-2">
+            <!-- Whip Skin Selector -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-2.5">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 mb-1.5">
+                    <i data-lucide="palette" class="w-3 h-3 text-amber-400"></i> Whip Skin
+                </label>
+                <select id="skinSelect" onchange="changeSkin(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-xs text-slate-200 font-medium focus:outline-none focus:border-amber-500">
+                    <option value="classic">Classic Leather</option>
+                    <option value="bullwhip">Bullwhip</option>
+                    <option value="neon">Neon Cyber</option>
+                    <option value="fire">Flame Whip</option>
+                </select>
+            </div>
+
+            <!-- Audio Sound Profile Selector -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-2.5">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 mb-1.5">
+                    <i data-lucide="volume-2" class="w-3 h-3 text-amber-400"></i> Sound Profile
+                </label>
+                <select id="soundSelect" onchange="changeSoundProfile(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-xs text-slate-200 font-medium focus:outline-none focus:border-amber-500">
+                    <option value="classic">Classic Whip</option>
+                    <option value="cyber">Cyber Crack</option>
+                    <option value="laser">Laser Whip</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Manual Crack Action Button -->
+        <button onclick="triggerWhipCrack('Manual Button')" class="w-full py-3.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 active:scale-98 text-slate-950 font-black text-lg uppercase tracking-wider rounded-2xl shadow-xl shadow-amber-950/40 transition-all border border-amber-300/40 flex items-center justify-center space-x-2">
+            <i data-lucide="flame" class="w-6 h-6 fill-current"></i>
+            <span>WHIP CRACK!</span>
+        </button>
+
+        <!-- Controls: Sensitivity & Sound Settings -->
+        <div class="glass-panel rounded-2xl p-4 space-y-3 border border-slate-800">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <i data-lucide="sliders" class="w-3.5 h-3.5 text-amber-400"></i> Settings
+                </h3>
+                <div class="flex items-center space-x-2">
+                    <button id="swishToggleBtn" onclick="toggleSwishSound()" class="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium flex items-center space-x-1">
+                        <i data-lucide="wind" class="w-3.5 h-3.5"></i>
+                        <span>Swish</span>
+                    </button>
+                    <button id="hapticToggleBtn" onclick="toggleHaptics()" class="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium flex items-center space-x-1" title="Toggle Vibration">
+                        <i data-lucide="vibrate" class="w-3.5 h-3.5"></i>
+                        <span>Vibe</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sensitivity Slider -->
+            <div class="space-y-1">
+                <div class="flex justify-between text-xs font-medium">
+                    <span class="text-slate-300">Whip Sensitivity</span>
+                    <span id="sensValue" class="font-mono text-amber-400 font-bold">Medium (22 m/s²)</span>
+                </div>
+                <input id="sensSlider" type="range" min="12" max="38" step="1" value="22" oninput="updateSensitivity(this.value)" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                <div class="flex justify-between text-[10px] text-slate-500">
+                    <span>Sensitive (Easy)</span>
+                    <span>Hard (Full Swing)</span>
+                </div>
+            </div>
+
+            <!-- Volume Slider -->
+            <div class="space-y-1 pt-1">
+                <div class="flex justify-between text-xs font-medium">
+                    <span class="text-slate-300">Whip Volume</span>
+                    <span id="volValue" class="font-mono text-amber-400 font-bold">80%</span>
+                </div>
+                <input id="volSlider" type="range" min="0" max="100" step="5" value="80" oninput="updateVolume(this.value)" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-2.5 px-4 text-center text-[10px] text-slate-500 border-t border-slate-900">
+        HTML5 Web Audio Synthesizer • Accelerometer Motion Sensor
+    </footer>
+
+    <!-- Whip Audio Synthesizer & Physics Logic Script -->
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // App state variables
+        let isSensorsActive = false;
+        let crackCount = 0;
+        let streakCount = 0;
+        let lastCrackTime = 0;
+        let crackSensitivity = 22.0; // Acceleration threshold m/s^2
+        let whipVolume = 0.8;
+        let hapticsEnabled = true;
+        let swishEnabled = true;
+        let currentSkin = 'classic';
+        let currentSoundProfile = 'classic';
+
+        // Peak tracking & debouncing
+        let peakAcceleration = 0.0;
+        let lastCrackTimestamp = 0;
+        let lastSwishTimestamp = 0;
+        const CRACK_COOLDOWN_MS = 350; // Prevent rapid false double cracks
+        const SWISH_COOLDOWN_MS = 200;
+
+        // Web Audio Context
+        let audioCtx = null;
+
+        // Canvas animation physics setup
+        let canvas, ctx;
+        let particles = [];
+        let whipAnimProgress = 1.0; // 0 to 1
+        let idleOffset = 0;
+
+        // Whip Skin Configurations
+        const SKINS = {
+            classic: { handle: '#78350f', wrap: '#451a03', stem: '#b45309', tip: '#f59e0b', spark: '#fbbf24' },
+            bullwhip: { handle: '#27272a', wrap: '#52525b', stem: '#a1a1aa', tip: '#e4e4e7', spark: '#f4f4f5' },
+            neon: { handle: '#0284c7', wrap: '#06b6d4', stem: '#22d3ee', tip: '#67e8f9', spark: '#a5f3fc' },
+            fire: { handle: '#991b1b', wrap: '#c2410c', stem: '#f97316', tip: '#facc15', spark: '#fef08a' }
+        };
+
+        window.onload = function() {
+            initCanvas();
+            window.addEventListener('resize', initCanvas);
+            requestAnimationFrame(renderCanvasLoop);
+        };
+
+        function initCanvas() {
+            canvas = document.getElementById('whipCanvas');
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * (window.devicePixelRatio || 1);
+            canvas.height = rect.height * (window.devicePixelRatio || 1);
+            ctx = canvas.getContext('2d');
+            ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+        }
+
+        // --- Web Audio API Whip Crack Synthesizer ---
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSwishSound() {
+            if (!swishEnabled) return;
+            initAudioContext();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+            const duration = 0.12;
+            const bufferSize = audioCtx.sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(300, now);
+            filter.frequency.exponentialRampToValueAtTime(1000, now + duration);
+            filter.Q.value = 3;
+
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.01, now);
+            gain.gain.linearRampToValueAtTime(whipVolume * 0.25, now + duration * 0.5);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            noise.start(now);
+        }
+
+        function playSynthesizedWhipSound() {
+            initAudioContext();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+
+            if (currentSoundProfile === 'cyber') {
+                playCyberCrackSound(now);
+                return;
+            } else if (currentSoundProfile === 'laser') {
+                playLaserWhipSound(now);
+                return;
+            }
+
+            // Classic Whip Sound
+            const whooshDuration = 0.15;
+            const bufferSize = audioCtx.sampleRate * whooshDuration;
+            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+
+            const whooshNoise = audioCtx.createBufferSource();
+            whooshNoise.buffer = noiseBuffer;
+
+            const whooshFilter = audioCtx.createBiquadFilter();
+            whooshFilter.type = 'lowpass';
+            whooshFilter.frequency.setValueAtTime(200, now);
+            whooshFilter.frequency.exponentialRampToValueAtTime(1200, now + whooshDuration);
+
+            const whooshGain = audioCtx.createGain();
+            whooshGain.gain.setValueAtTime(0.01, now);
+            whooshGain.gain.linearRampToValueAtTime(whipVolume * 0.4, now + whooshDuration * 0.7);
+            whooshGain.gain.exponentialRampToValueAtTime(0.001, now + whooshDuration);
+
+            whooshNoise.connect(whooshFilter);
+            whooshFilter.connect(whooshGain);
+            whooshGain.connect(audioCtx.destination);
+
+            whooshNoise.start(now);
+
+            // Crack Impact
+            const crackStart = now + whooshDuration * 0.8;
+            const crackDuration = 0.08;
+            const crackBufferSize = audioCtx.sampleRate * crackDuration;
+            const crackBuffer = audioCtx.createBuffer(1, crackBufferSize, audioCtx.sampleRate);
+            const crackData = crackBuffer.getChannelData(0);
+            for (let i = 0; i < crackBufferSize; i++) {
+                crackData[i] = Math.random() * 2 - 1;
+            }
+
+            const crackNoise = audioCtx.createBufferSource();
+            crackNoise.buffer = crackBuffer;
+
+            const crackFilter = audioCtx.createBiquadFilter();
+            crackFilter.type = 'highpass';
+            crackFilter.frequency.setValueAtTime(3000, crackStart);
+            crackFilter.frequency.linearRampToValueAtTime(800, crackStart + crackDuration);
+
+            const crackGain = audioCtx.createGain();
+            crackGain.gain.setValueAtTime(whipVolume * 1.0, crackStart);
+            crackGain.gain.exponentialRampToValueAtTime(0.001, crackStart + crackDuration);
+
+            crackNoise.connect(crackFilter);
+            crackFilter.connect(crackGain);
+            crackGain.connect(audioCtx.destination);
+
+            crackNoise.start(crackStart);
+
+            // Thump Oscillator
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(450, crackStart);
+            osc.frequency.exponentialRampToValueAtTime(40, crackStart + 0.05);
+
+            oscGain.gain.setValueAtTime(whipVolume * 0.6, crackStart);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, crackStart + 0.05);
+
+            osc.connect(oscGain);
+            oscGain.connect(audioCtx.destination);
+
+            osc.start(crackStart);
+            osc.stop(crackStart + 0.06);
+        }
+
+        function playCyberCrackSound(now) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
+
+            gain.gain.setValueAtTime(whipVolume * 0.8, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.13);
+        }
+
+        function playLaserWhipSound(now) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(2400, now);
+            osc.frequency.exponentialRampToValueAtTime(150, now + 0.15);
+
+            gain.gain.setValueAtTime(whipVolume * 0.9, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.16);
+        }
+
+        // --- Motion Sensor Initialization ---
+        async function toggleMotionSensors() {
+            initAudioContext();
+
+            if (isSensorsActive) {
+                stopSensors();
+            } else {
+                await startSensors();
+            }
+        }
+
+        async function startSensors() {
+            // iOS Permission Check
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    const permission = await DeviceMotionEvent.requestPermission();
+                    if (permission !== 'granted') {
+                        alert('Device motion access was denied.');
+                        return;
+                    }
+                } catch (e) {
+                    console.error('DeviceMotion permission error:', e);
+                }
+            }
+
+            if (!('DeviceMotionEvent' in window)) {
+                alert('DeviceMotionEvent is not supported on this browser.');
+                return;
+            }
+
+            window.addEventListener('devicemotion', handleMotionEvent, true);
+            isSensorsActive = true;
+            updateSensorUI(true);
+        }
+
+        function stopSensors() {
+            window.removeEventListener('devicemotion', handleMotionEvent, true);
+            isSensorsActive = false;
+            updateSensorUI(false);
+        }
+
+        function updateSensorUI(active) {
+            const dot = document.getElementById('sensorDot');
+            const title = document.getElementById('statusTitle');
+            const desc = document.getElementById('statusDesc');
+            const btnText = document.getElementById('sensorBtnText');
+            const icon = document.getElementById('sensorIcon');
+
+            if (active) {
+                dot.className = "w-3 h-3 rounded-full bg-emerald-500 shadow-lg animate-ping";
+                title.textContent = "Sensor Active — Ready to Crack";
+                desc.textContent = "Swing your phone briskly to whip!";
+                btnText.textContent = "Disable Motion";
+                icon.setAttribute('data-lucide', 'square');
+            } else {
+                dot.className = "w-3 h-3 rounded-full bg-rose-500 shadow-md animate-pulse";
+                title.textContent = "Motion Sensor Inactive";
+                desc.textContent = "Tap 'Enable Motion' to swing your phone";
+                btnText.textContent = "Enable Motion";
+                icon.setAttribute('data-lucide', 'power');
+            }
+            lucide.createIcons();
+        }
+
+        // Handle Device Motion Accelerometer Data
+        function handleMotionEvent(event) {
+            const lin = event.acceleration || { x: 0, y: 0, z: 0 };
+            const grav = event.accelerationIncludingGravity || { x: 0, y: 0, z: 0 };
+
+            const x = lin.x || grav.x || 0;
+            const y = lin.y || grav.y || 0;
+            const z = lin.z || grav.z || 0;
+
+            const force = Math.sqrt(x * x + y * y + z * z);
+            document.getElementById('currentForce').textContent = force.toFixed(1);
+
+            if (force > peakAcceleration) {
+                peakAcceleration = force;
+                document.getElementById('maxForce').textContent = peakAcceleration.toFixed(1);
+            }
+
+            const now = performance.now();
+
+            // Trigger subtle swish sound on moderate swing force
+            if (force > crackSensitivity * 0.5 && force < crackSensitivity && (now - lastSwishTimestamp > SWISH_COOLDOWN_MS)) {
+                lastSwishTimestamp = now;
+                playSwishSound();
+            }
+
+            // Trigger whip crack if force exceeds sensitivity threshold & cooldown passed
+            if (force >= crackSensitivity && (now - lastCrackTimestamp > CRACK_COOLDOWN_MS)) {
+                lastCrackTimestamp = now;
+                triggerWhipCrack('Accelerometer Motion');
+            }
+        }
+
+        // Core Whip Crack Trigger
+        function triggerWhipCrack(source) {
+            const nowTime = Date.now();
+            if (nowTime - lastCrackTime < 3000) {
+                streakCount++;
+            } else {
+                streakCount = 1;
+            }
+            lastCrackTime = nowTime;
+
+            crackCount++;
+            document.getElementById('crackCount').textContent = crackCount;
+            document.getElementById('streakCount').textContent = streakCount;
+
+            // 1. Play Synthesized Sound
+            playSynthesizedWhipSound();
+
+            // 2. Haptic Vibration Feedback
+            if (hapticsEnabled && navigator.vibrate) {
+                navigator.vibrate([15, 30, 60]);
+            }
+
+            // 3. Screen Flash Feedback
+            const flash = document.getElementById('flashOverlay');
+            flash.style.opacity = '1';
+            setTimeout(() => { flash.style.opacity = '0'; }, 100);
+
+            // 4. Start Canvas Whip Whip Curve Animation & Particles
+            whipAnimProgress = 0;
+            spawnCrackParticles();
+        }
+
+        // --- Settings Controls Handlers ---
+        function updateSensitivity(val) {
+            crackSensitivity = parseFloat(val);
+            let label = "Medium";
+            if (crackSensitivity < 17) label = "Easy (Light Flick)";
+            else if (crackSensitivity > 28) label = "Hard (Strong Swing)";
+
+            document.getElementById('sensValue').textContent = `${label} (${crackSensitivity} m/s²)`;
+        }
+
+        function updateVolume(val) {
+            whipVolume = parseFloat(val) / 100.0;
+            document.getElementById('volValue').textContent = `${val}%`;
+        }
+
+        function toggleHaptics() {
+            hapticsEnabled = !hapticsEnabled;
+            const btn = document.getElementById('hapticToggleBtn');
+            if (hapticsEnabled) {
+                btn.className = "p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium flex items-center space-x-1";
+                if (navigator.vibrate) navigator.vibrate(40);
+            } else {
+                btn.className = "p-1.5 rounded-lg bg-slate-800 text-slate-500 border border-slate-700 text-xs font-medium flex items-center space-x-1";
+            }
+        }
+
+        function toggleSwishSound() {
+            swishEnabled = !swishEnabled;
+            const btn = document.getElementById('swishToggleBtn');
+            if (swishEnabled) {
+                btn.className = "p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium flex items-center space-x-1";
+            } else {
+                btn.className = "p-1.5 rounded-lg bg-slate-800 text-slate-500 border border-slate-700 text-xs font-medium flex items-center space-x-1";
+            }
+        }
+
+        function changeSkin(skin) {
+            currentSkin = skin;
+        }
+
+        function changeSoundProfile(profile) {
+            currentSoundProfile = profile;
+        }
+
+        // --- Particle System & Whip Canvas Animation ---
+        function spawnCrackParticles() {
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const crackX = rect.width * 0.78;
+            const crackY = rect.height * 0.38;
+
+            const skin = SKINS[currentSkin];
+
+            for (let i = 0; i < 28; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 9;
+                particles.push({
+                    x: crackX,
+                    y: crackY,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1.0,
+                    size: 2 + Math.random() * 5,
+                    color: Math.random() > 0.3 ? skin.spark : skin.tip
+                });
+            }
+        }
+
+        function renderCanvasLoop() {
+            if (ctx && canvas) {
+                const rect = canvas.getBoundingClientRect();
+                const w = rect.width;
+                const h = rect.height;
+
+                ctx.clearRect(0, 0, w, h);
+
+                const skin = SKINS[currentSkin];
+
+                // Idle handle & coil rendering
+                const handleX = w * 0.12;
+                const handleY = h * 0.82;
+
+                // Render Whip Handle
+                ctx.save();
+                ctx.lineWidth = 10;
+                ctx.strokeStyle = skin.handle;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(handleX - 15, handleY + 20);
+                ctx.lineTo(handleX + 15, handleY - 10);
+                ctx.stroke();
+
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = skin.wrap;
+                ctx.beginPath();
+                ctx.moveTo(handleX - 10, handleY + 15);
+                ctx.lineTo(handleX + 10, handleY - 5);
+                ctx.stroke();
+                ctx.restore();
+
+                // Animate Whip Curve Lash
+                if (whipAnimProgress < 1.0) {
+                    whipAnimProgress += 0.07;
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.lineWidth = 5;
+                    ctx.strokeStyle = skin.stem;
+                    ctx.lineCap = 'round';
+
+                    const startX = handleX + 15;
+                    const startY = handleY - 10;
+                    const targetX = w * 0.78;
+                    const targetY = h * 0.38;
+
+                    const waveOffset = Math.sin(whipAnimProgress * Math.PI) * (h * 0.55);
+                    const cpX = w * 0.42;
+                    const cpY = (h * 0.15) - waveOffset;
+
+                    ctx.moveTo(startX, startY);
+                    ctx.quadraticCurveTo(cpX, cpY, targetX, targetY);
+                    ctx.stroke();
+
+                    // Popper Tip Flash
+                    if (whipAnimProgress > 0.4 && whipAnimProgress < 0.85) {
+                        ctx.beginPath();
+                        ctx.arc(targetX, targetY, 14, 0, Math.PI * 2);
+                        ctx.fillStyle = skin.spark;
+                        ctx.fill();
+                    }
+
+                    ctx.restore();
+                } else {
+                    // Static Coiled Resting Whip
+                    idleOffset += 0.03;
+                    const idleY = Math.sin(idleOffset) * 3;
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = skin.stem;
+                    ctx.moveTo(handleX + 15, handleY - 10);
+                    ctx.quadraticCurveTo(w * 0.25, h * 0.7 + idleY, w * 0.35, h * 0.8 + idleY);
+                    ctx.quadraticCurveTo(w * 0.45, h * 0.9, w * 0.5, h * 0.82 + idleY);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // Render Particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= 0.04;
+
+                    if (p.life <= 0) {
+                        particles.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life;
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            requestAnimationFrame(renderCanvasLoop);
+        }
+    </script>
+</body>
+</html>
