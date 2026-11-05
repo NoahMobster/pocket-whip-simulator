@@ -265,39 +265,88 @@
             }
         }
 
+        function createNoiseBuffer(duration, gainScale = 1) {
+            const sr = audioCtx.sampleRate;
+            const frameCount = Math.max(1, Math.floor(sr * duration));
+            const buffer = audioCtx.createBuffer(1, frameCount, sr);
+            const data = buffer.getChannelData(0);
+
+            for (let i = 0; i < frameCount; i++) {
+                const t = i / frameCount;
+                const noise = (Math.random() * 2 - 1);
+                const envelope = Math.sin(t * Math.PI);
+                data[i] = noise * envelope * gainScale;
+            }
+
+            return buffer;
+        }
+
+        function playNoiseBurst({ start, duration = 0.12, low = 300, high = 1500, gainValue = 0.2, q = 1 }) {
+            const noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = createNoiseBuffer(duration, 0.8);
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(low, start);
+            filter.frequency.exponentialRampToValueAtTime(high, start + duration);
+            filter.Q.value = q;
+
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.exponentialRampToValueAtTime(gainValue, start + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+            noiseSource.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            noiseSource.start(start);
+            noiseSource.stop(start + duration + 0.02);
+        }
+
+        function playOscTone({ start, duration = 0.08, freq = 220, endFreq = 40, type = 'sawtooth', gainValue = 0.25 }) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, start);
+            osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), start + duration);
+
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.exponentialRampToValueAtTime(gainValue, start + 0.005);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration);
+        }
+
         function playSwishSound() {
             if (!swishEnabled) return;
             initAudioContext();
             if (!audioCtx) return;
 
             const now = audioCtx.currentTime;
-            const duration = 0.12;
-            const bufferSize = audioCtx.sampleRate * duration;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
-            }
-
             const noise = audioCtx.createBufferSource();
-            noise.buffer = buffer;
+            noise.buffer = createNoiseBuffer(0.18, 0.85);
 
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'bandpass';
-            filter.frequency.setValueAtTime(300, now);
-            filter.frequency.exponentialRampToValueAtTime(1000, now + duration);
-            filter.Q.value = 3;
+            filter.frequency.setValueAtTime(700, now);
+            filter.frequency.exponentialRampToValueAtTime(2100, now + 0.18);
+            filter.Q.value = 0.8;
 
             const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(0.01, now);
-            gain.gain.linearRampToValueAtTime(whipVolume * 0.25, now + duration * 0.5);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(whipVolume * 0.10, now + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
             noise.connect(filter);
             filter.connect(gain);
             gain.connect(audioCtx.destination);
 
             noise.start(now);
+            noise.stop(now + 0.2);
         }
 
         function playSynthesizedWhipSound() {
@@ -314,109 +363,77 @@
                 return;
             }
 
-            // Classic Whip Sound
-            const whooshDuration = 0.15;
-            const bufferSize = audioCtx.sampleRate * whooshDuration;
-            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const output = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                output[i] = Math.random() * 2 - 1;
-            }
-
-            const whooshNoise = audioCtx.createBufferSource();
-            whooshNoise.buffer = noiseBuffer;
-
-            const whooshFilter = audioCtx.createBiquadFilter();
-            whooshFilter.type = 'lowpass';
-            whooshFilter.frequency.setValueAtTime(200, now);
-            whooshFilter.frequency.exponentialRampToValueAtTime(1200, now + whooshDuration);
-
-            const whooshGain = audioCtx.createGain();
-            whooshGain.gain.setValueAtTime(0.01, now);
-            whooshGain.gain.linearRampToValueAtTime(whipVolume * 0.4, now + whooshDuration * 0.7);
-            whooshGain.gain.exponentialRampToValueAtTime(0.001, now + whooshDuration);
-
-            whooshNoise.connect(whooshFilter);
-            whooshFilter.connect(whooshGain);
-            whooshGain.connect(audioCtx.destination);
-
-            whooshNoise.start(now);
-
-            // Crack Impact
-            const crackStart = now + whooshDuration * 0.8;
-            const crackDuration = 0.08;
-            const crackBufferSize = audioCtx.sampleRate * crackDuration;
-            const crackBuffer = audioCtx.createBuffer(1, crackBufferSize, audioCtx.sampleRate);
-            const crackData = crackBuffer.getChannelData(0);
-            for (let i = 0; i < crackBufferSize; i++) {
-                crackData[i] = Math.random() * 2 - 1;
-            }
-
-            const crackNoise = audioCtx.createBufferSource();
-            crackNoise.buffer = crackBuffer;
-
-            const crackFilter = audioCtx.createBiquadFilter();
-            crackFilter.type = 'highpass';
-            crackFilter.frequency.setValueAtTime(3000, crackStart);
-            crackFilter.frequency.linearRampToValueAtTime(800, crackStart + crackDuration);
-
-            const crackGain = audioCtx.createGain();
-            crackGain.gain.setValueAtTime(whipVolume * 1.0, crackStart);
-            crackGain.gain.exponentialRampToValueAtTime(0.001, crackStart + crackDuration);
-
-            crackNoise.connect(crackFilter);
-            crackFilter.connect(crackGain);
-            crackGain.connect(audioCtx.destination);
-
-            crackNoise.start(crackStart);
-
-            // Thump Oscillator
-            const osc = audioCtx.createOscillator();
-            const oscGain = audioCtx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(450, crackStart);
-            osc.frequency.exponentialRampToValueAtTime(40, crackStart + 0.05);
-
-            oscGain.gain.setValueAtTime(whipVolume * 0.6, crackStart);
-            oscGain.gain.exponentialRampToValueAtTime(0.001, crackStart + 0.05);
-
-            osc.connect(oscGain);
-            oscGain.connect(audioCtx.destination);
-
-            osc.start(crackStart);
-            osc.stop(crackStart + 0.06);
+            // Realistic leather whip with layered noise and a sharp crack transient
+            playNoiseBurst({ start: now, duration: 0.18, low: 350, high: 1800, gainValue: whipVolume * 0.9, q: 0.9 });
+            playNoiseBurst({ start: now + 0.06, duration: 0.08, low: 2200, high: 9000, gainValue: whipVolume * 0.8, q: 1.2 });
+            playOscTone({ start: now + 0.04, duration: 0.08, freq: 160, endFreq: 24, type: 'sawtooth', gainValue: whipVolume * 0.22 });
+            playOscTone({ start: now + 0.09, duration: 0.12, freq: 120, endFreq: 18, type: 'triangle', gainValue: whipVolume * 0.14 });
+            playOscTone({ start: now + 0.12, duration: 0.12, freq: 90, endFreq: 14, type: 'square', gainValue: whipVolume * 0.08 });
         }
 
         function playCyberCrackSound(now) {
-            const osc = audioCtx.createOscillator();
+            const oscA = audioCtx.createOscillator();
+            const oscB = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(1200, now);
-            osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
+            const filter = audioCtx.createBiquadFilter();
 
-            gain.gain.setValueAtTime(whipVolume * 0.8, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            oscA.type = 'sawtooth';
+            oscB.type = 'square';
+            oscA.frequency.setValueAtTime(1100, now);
+            oscA.frequency.exponentialRampToValueAtTime(150, now + 0.18);
+            oscB.frequency.setValueAtTime(400, now);
+            oscB.frequency.exponentialRampToValueAtTime(60, now + 0.12);
 
-            osc.connect(gain);
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(5900, now);
+            filter.frequency.exponentialRampToValueAtTime(1000, now + 0.18);
+
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(whipVolume * 0.65, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+            oscA.connect(filter);
+            oscB.connect(filter);
+            filter.connect(gain);
             gain.connect(audioCtx.destination);
-            osc.start(now);
-            osc.stop(now + 0.13);
+
+            oscA.start(now);
+            oscB.start(now);
+            oscA.stop(now + 0.18);
+            oscB.stop(now + 0.12);
         }
 
         function playLaserWhipSound(now) {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
+            const shimmer = audioCtx.createOscillator();
+            const shimmerGain = audioCtx.createGain();
+
             osc.type = 'sine';
             osc.frequency.setValueAtTime(2400, now);
-            osc.frequency.exponentialRampToValueAtTime(150, now + 0.15);
+            osc.frequency.exponentialRampToValueAtTime(120, now + 0.18);
 
-            gain.gain.setValueAtTime(whipVolume * 0.9, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+            shimmer.type = 'triangle';
+            shimmer.frequency.setValueAtTime(5200, now);
+            shimmer.frequency.exponentialRampToValueAtTime(300, now + 0.18);
+
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(whipVolume * 0.4, now + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+            shimmerGain.gain.setValueAtTime(0.0001, now);
+            shimmerGain.gain.exponentialRampToValueAtTime(whipVolume * 0.25, now + 0.01);
+            shimmerGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
 
             osc.connect(gain);
+            shimmer.connect(shimmerGain);
             gain.connect(audioCtx.destination);
+            shimmerGain.connect(audioCtx.destination);
+
             osc.start(now);
-            osc.stop(now + 0.16);
+            shimmer.start(now);
+            osc.stop(now + 0.18);
+            shimmer.stop(now + 0.14);
         }
 
         // --- Motion Sensor Initialization ---
